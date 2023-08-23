@@ -18,7 +18,7 @@ import logging
 
 import torch  # pytype: disable=import-error
 from nemo.collections.nlp.modules.common.text_generation_utils import generate  # pytype: disable=import-error
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPPlugin  # pytype: disable=import-error
+from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from pytorch_lightning.trainer.trainer import Trainer  # pytype: disable=import-error
 
 from pytriton.model_config import ModelConfig
@@ -89,13 +89,22 @@ def main():
     logger.info("Initialize trainer:")
     logger.info(f" devices: {args.gpus}")
     logger.info(f" nodes: {args.nodes}")
+    strategy = NLPDDPStrategy(
+        no_ddp_communication_hook=True,  # we don't use DDP for async grad allreduce
+        gradient_as_bucket_view=False,
+        find_unused_parameters=False,
+    )
+
     trainer = Trainer(
-        plugins=[NLPDDPPlugin()],
-        devices=args.gpus,
-        num_nodes=args.nodes,
+        plugins=[],
+        strategy=strategy,
+        devices=nemo_params["devices"],
         accelerator="gpu",
-        logger=False,
+        num_nodes=nemo_params["num_nodes"],
         precision=16,
+        logger=False,
+        enable_checkpointing=False,
+        replace_sampler_ddp=False,
     )
 
     model_path = download_hf_model(args.model_repo_id, args.model_filename)
